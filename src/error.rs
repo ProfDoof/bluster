@@ -5,6 +5,7 @@ pub enum ErrorType {
     Bluez,
     CoreBluetooth,
     Usb,
+    Windows,
 }
 
 impl From<ErrorType> for &'static str {
@@ -13,12 +14,13 @@ impl From<ErrorType> for &'static str {
             ErrorType::Bluez => "Bluez",
             ErrorType::CoreBluetooth => "CoreBluetooth",
             ErrorType::Usb => "USB",
+            ErrorType::Windows => "Windows",
         }
     }
 }
 
 impl fmt::Display for ErrorType {
-    fn fmt(self: &Self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let error_type: &str = self.clone().into();
         write!(f, "<Bluster {} Error>", error_type)
     }
@@ -35,7 +37,11 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn new<T: Into<String>>(name: T, description: T, error_type: ErrorType) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        error_type: ErrorType,
+    ) -> Self {
         let name: String = name.into();
         let description: String = description.into();
         let combined_description = format!("{}: {}", name, description);
@@ -49,7 +55,7 @@ impl Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(self: &Self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let error_type: &str = self.error_type.clone().into();
         write!(
             f,
@@ -60,11 +66,11 @@ impl fmt::Display for Error {
 }
 
 impl error::Error for Error {
-    fn description(self: &Self) -> &str {
-        &self.combined_description
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        Some(&self.error_type)
     }
 
-    fn source(self: &Self) -> Option<&(dyn error::Error + 'static)> {
-        Some(&self.error_type)
+    fn description(&self) -> &str {
+        &self.combined_description
     }
 }

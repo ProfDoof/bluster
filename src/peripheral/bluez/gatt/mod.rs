@@ -5,14 +5,16 @@ mod flags;
 mod service;
 
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
 
 use self::{
     application::Application, characteristic::Characteristic, descriptor::Descriptor,
     service::Service,
 };
 use super::{common, constants::PATH_BASE, Connection};
-use crate::{gatt, Error};
+use crate::{gatt, Error, ErrorType};
 
 #[derive(Debug)]
 pub struct Gatt {
@@ -45,13 +47,13 @@ impl Gatt {
         }
     }
 
-    pub fn add_service(self: &Self, service: &gatt::service::Service) -> Result<(), Error> {
-        let mut tree = self.tree.lock().unwrap();
+    pub async fn add_service(self: &Self, service: &gatt::service::Service) -> Result<(), Error> {
+        let mut tree = self.tree.lock().await;
         let tree = tree.as_mut().unwrap();
 
-        let mut service_index = self.service_index.lock().unwrap();
-        let mut characteristic_index = self.characteristic_index.lock().unwrap();
-        let mut descriptor_index = self.descriptor_index.lock().unwrap();
+        let mut service_index = self.service_index.lock().await;
+        let mut characteristic_index = self.characteristic_index.lock().await;
+        let mut descriptor_index = self.descriptor_index.lock().await;
 
         let gatt_service = Service::new(tree, &Arc::new(service.clone()), *service_index)?;
         *service_index += 1;
@@ -80,8 +82,8 @@ impl Gatt {
         Ok(())
     }
 
-    pub async fn register(self: &Self) -> Result<(), Error> {
-        let mut tree = self.tree.lock().unwrap().take().unwrap();
+    pub async fn register(&self) -> Result<(), Error> {
+        let mut tree = self.tree.lock().await.take().unwrap();
 
         let new_application = Application::new(
             Arc::clone(&self.connection),
@@ -91,7 +93,7 @@ impl Gatt {
 
         self.application
             .lock()
-            .unwrap()
+            .await
             .replace(new_application.clone());
 
         let mut match_rule = MatchRule::new_method_call();
@@ -108,14 +110,19 @@ impl Gatt {
         new_application.register().await
     }
 
-    pub async fn unregister(self: &Self) -> Result<(), Error> {
+    pub async fn unregister(&self) -> Result<(), Error> {
         self.application
             .lock()
-            .unwrap()
-            .take()
-            .unwrap()
-            .unregister()
             .await
-            .map(|_| ())
+            .as_ref()
+            .ok_or_else(|| {
+                Error::new(
+                    "BlueZ",
+                    "Failed to acquire lock to application to unregister",
+                    ErrorType::Bluez,
+                )
+            })
+            .map(|app| app.unregister())?
+            .await
     }
 }

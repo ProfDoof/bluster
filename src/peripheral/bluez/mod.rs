@@ -6,10 +6,12 @@ mod constants;
 mod error;
 mod gatt;
 
+use async_trait::async_trait;
 use std::{string::ToString, sync::Arc};
 use uuid::Uuid;
 
 use self::{adapter::Adapter, advertisement::Advertisement, connection::Connection, gatt::Gatt};
+use crate::peripheral::PeripheralServer;
 use crate::{gatt::service::Service, Error};
 
 #[derive(Debug)]
@@ -42,20 +44,23 @@ impl Peripheral {
     pub async fn set_alias(&self, alias: &str) -> Result<(), Error> {
         self.adapter.set_alias(alias).await
     }
+}
 
-    pub async fn is_powered(self: &Self) -> Result<bool, Error> {
+#[async_trait]
+impl PeripheralServer for Peripheral {
+    async fn is_powered(&self) -> Result<bool, Error> {
         self.adapter.is_powered().await
     }
 
-    pub async fn register_gatt(&self) -> Result<(), Error> {
+    async fn register_gatt(&self) -> Result<(), Error> {
         self.gatt.register().await
     }
 
-    pub async fn unregister_gatt(&self) -> Result<(), Error> {
+    async fn unregister_gatt(&self) -> Result<(), Error> {
         self.gatt.unregister().await
     }
 
-    pub async fn start_advertising(self: &Self, name: &str, uuids: &[Uuid]) -> Result<(), Error> {
+    async fn start_advertising(&self, name: &str, uuids: &[Uuid]) -> Result<(), Error> {
         self.advertisement.add_name(name);
         self.advertisement.add_uuids(
             uuids
@@ -68,15 +73,15 @@ impl Peripheral {
         self.advertisement.register().await
     }
 
-    pub async fn stop_advertising(self: &Self) -> Result<(), Error> {
+    async fn stop_advertising(&self) -> Result<(), Error> {
         self.advertisement.unregister().await
     }
 
-    pub async fn is_advertising(self: &Self) -> Result<bool, Error> {
+    async fn is_advertising(&self) -> Result<bool, Error> {
         Ok(self.advertisement.is_advertising())
     }
 
-    pub fn add_service(self: &Self, service: &Service) -> Result<(), Error> {
-        self.gatt.add_service(service)
+    async fn add_service(&self, service: &Service) -> Result<(), Error> {
+        self.gatt.add_service(service).await
     }
 }

@@ -16,11 +16,11 @@ use bluster::{
         event::{Event, Response},
         service::Service,
     },
-    Peripheral, SdpShortUuid,
+    Peripheral, PeripheralServer, SdpShortUuid,
 };
 
 const ADVERTISING_NAME: &str = "hello";
-const ADVERTISING_TIMEOUT: Duration = Duration::from_secs(60);
+const ADVERTISING_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[tokio::test]
 async fn it_advertises_gatt() {
@@ -30,9 +30,10 @@ async fn it_advertises_gatt() {
     let (sender_characteristic, receiver_characteristic) = channel(1);
     let (sender_descriptor, receiver_descriptor) = channel(1);
 
+    println!("Creating characteristic...");
     let mut characteristics: HashSet<Characteristic> = HashSet::new();
     characteristics.insert(Characteristic::new(
-        Uuid::from_sdp_short_uuid(0x2A3D as u16),
+        Uuid::from_sdp_short_uuid(0x2A3D_u16),
         characteristic::Properties::new(
             Some(characteristic::Read(characteristic::Secure::Insecure(
                 sender_characteristic.clone(),
@@ -47,7 +48,7 @@ async fn it_advertises_gatt() {
         {
             let mut descriptors = HashSet::<Descriptor>::new();
             descriptors.insert(Descriptor::new(
-                Uuid::from_sdp_short_uuid(0x2A3D as u16),
+                Uuid::from_sdp_short_uuid(0x2A3D_u16),
                 descriptor::Properties::new(
                     Some(descriptor::Read(descriptor::Secure::Insecure(
                         sender_descriptor.clone(),
@@ -61,7 +62,6 @@ async fn it_advertises_gatt() {
             descriptors
         },
     ));
-
     let characteristic_handler = async {
         let characteristic_value = Arc::new(Mutex::new(String::from("hi")));
         let notifying = Arc::new(atomic::AtomicBool::new(false));
@@ -155,13 +155,15 @@ async fn it_advertises_gatt() {
         }
     };
 
+    println!("Creating the peripheral...");
     let peripheral = Peripheral::new().await.unwrap();
     peripheral
         .add_service(&Service::new(
-            Uuid::from_sdp_short_uuid(0x1234 as u16),
+            Uuid::from_sdp_short_uuid(0x1234_u16),
             true,
             characteristics,
         ))
+        .await
         .unwrap();
     let main_fut = async move {
         while !peripheral.is_powered().await.unwrap() {}
@@ -180,5 +182,5 @@ async fn it_advertises_gatt() {
         println!("Peripheral stopped advertising");
     };
 
-    futures::join!(characteristic_handler, descriptor_handler, main_fut);
+    futures::join!(descriptor_handler, characteristic_handler, main_fut);
 }
